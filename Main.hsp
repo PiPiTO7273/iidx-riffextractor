@@ -1,0 +1,97 @@
+#include"hsp3_64.as"
+#include"hspint64.as"
+
+#pack"bg.png"
+#packopt hide 1
+#packopt icon "icon.ico"
+
+dir_def=dir_cur
+
+*boot
+
+chdir dir_def
+
+screen 0,640,400
+title"beatmania IIDX Infinitas RIFF Extractor"
+
+picload"bg.png",1
+color 255,255,255:font"MS MINCHO",16,1
+pos 20,40
+
+mes"～なんのソフト？～"
+mes"beatmania IIDX Infinitasのメモリデータから音声ファイルを抽出します。"
+mes"通常、ゲームデータはアーケードに近い形で暗号化されており閲覧できません。"
+mes"このソフトはメモリダンプからRIFFヘッダーを検出して抽出します。"
+mes""
+
+mes"～使い方～"
+mes"(1) beatmania IIDX Infinitasを起動し、タイトル画面まで移動します。"
+mes"(2) タスクマネージャーを開き、bm2dx.exeのメモリダンプを作成します。"
+mes"(3) このソフトでメモリダンプのファイルを読み込みます。"
+mes""
+mes"\"メモリダンプを選択\"を押してファイルを選択すると、\n同じディレクトリにWAVファイルを展開します。"
+
+objsize 200,30
+pos ginfo(12)/2-200/2,ginfo(13)-60:button"メモリダンプを選択",*start
+
+pos 20,280:mes"ヘッダー検索開始オフセット(byte)"
+sdim of:of="215712704"
+pos 320,280:input of,100,20
+
+stop
+*start
+
+	dialog"dmp",16,"ダンプファイル"
+	if stat==0 :stop
+
+	screen 0,640,600
+	title"beatmania IIDX Infinitas RIFF Extractor - 処理中・・・"
+
+	color 0,0,0:boxf
+	color 255,255,255:font"MS MINCHO",16,1
+	pos 20,40:mes"～進捗～"
+
+	exist refstr
+	sdim dmpbuf,strsize
+	bload refstr,dmpbuf
+
+	mes"ファイル読み込み完了"
+
+	sdim riffcheckbuf
+	poke riffcheckbuf,0,'R'
+	poke riffcheckbuf,1,'I'
+	poke riffcheckbuf,2,'F'
+	poke riffcheckbuf,3,'F'
+	dim riffpos
+	dim riffdatalength
+	dim riffmax
+	mes"ファイルサイズは"+str(varsize(dmpbuf))+"バイトです"
+	repeat varsize(dmpbuf)-4,215712704
+		if lpeek(dmpbuf,cnt)==lpeek(riffcheckbuf,0) {
+			riffpos(riffmax)=cnt
+			riffdatalength(riffmax)=lpeek(dmpbuf,cnt+4)
+	
+			mes"RIFFデータ構造を検出しました "+(riffmax+1)+"個目"
+	
+			sdim riffoutput,riffdatalength(riffmax)+8
+			memcpy riffoutput,dmpbuf,riffdatalength(riffmax)+8,0,riffpos(riffmax)
+			bsave strf("%04d",riffmax)+".wav",riffoutput
+
+			mes"ファイルを保存しました。 \""+strf("%04d",riffmax)+".wav"+"\"
+			
+			riffmax++
+		}
+		if cnt\(1024*1024)==0 :mes""+cnt+"/"+varsize(dmpbuf)+" bytes ["+strf("%.2f",(double(cnt)/double(varsize(dmpbuf))*100.0))+"%]":wait 1
+		if ginfo(23)+40>ginfo(13) {
+			color 0,0,0:boxf
+			color 255,255,255:font"MS MINCHO",16,1
+			pos 20,40:mes"～進捗～"
+		}
+		if cnt>1024*1024*1024 {
+			break
+		}
+	loop
+	mes"完了しました"
+	wait 100
+	
+	goto*boot
